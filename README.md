@@ -1,84 +1,72 @@
-# Actualizador Inteligente de Node.js para WSL y macOS
+# Actualizador de Node.js
 
-Esta herramienta automatiza el proceso de actualización de Node.js en entornos WSL (Windows Subsystem for Linux) y macOS, teniendo en cuenta las dependencias del proyecto y permitiendo la selección de versiones locales.
+Esta herramienta permite actualizar fácilmente la versión de Node.js en entornos WSL, Linux y macOS utilizando NVM (Node Version Manager).
+
+## Requisitos previos
+
+- NVM (Node Version Manager) instalado y configurado correctamente.
+- Bash shell disponible (para WSL, Linux y macOS).
 
 ## Características
 
-- Compatible con WSL y macOS.
-- Detecta la versión actual de Node.js instalada.
-- Identifica la siguiente versión par disponible para la actualización.
-- Actualiza las dependencias del proyecto en el archivo package.json.
-- Permite la selección de versiones de Node.js desde una ubicación local.
-- Realiza actualizaciones solo a versiones pares de Node.js.
+- Detección automática del sistema operativo (WSL, Linux, macOS).
+- Verificación de la versión actual de Node.js.
+- Opciones para seleccionar la versión de actualización:
+  - Ingresar una versión específica.
+  - Usar la última versión LTS par disponible.
+  - Ver y seleccionar de una lista de versiones disponibles.
+- Múltiples opciones de instalación:
+  - Desde repositorios oficiales.
+  - Desde un archivo local.
+  - Desde SharePoint (para entornos corporativos).
+- Actualización opcional de dependencias del proyecto después de instalar la nueva versión de Node.js.
+- Creación/actualización automática del archivo .nvmrc.
 
-## Requisitos
+## Cómo usar
 
-- WSL (Windows Subsystem for Linux) o macOS.
-- Node.js y npm instalados.
-- NVM (Node Version Manager) instalado.
+1. Asegúrese de tener NVM instalado y configurado correctamente.
+2. Clone este repositorio o descargue los archivos en su máquina local.
+3. Abra una terminal y navegue hasta el directorio del proyecto.
+4. Ejecute el siguiente comando:
 
-### Instalación de NVM
-
-Si no tiene NVM instalado, puede instalarlo siguiendo estos pasos:
-
-1. Abra su terminal (WSL o macOS).
-2. Ejecute el siguiente comando para descargar e instalar NVM:
    ```
-   curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash
-   ```
-3. Cierre y vuelva a abrir su terminal, o ejecute el siguiente comando para cargar NVM:
-   ```
-   source ~/.nvm/nvm.sh
-   ```
-4. Verifique que NVM se ha instalado correctamente ejecutando:
-   ```
-   nvm --version
+   npm start
    ```
 
-## Instalación del Actualizador
+5. Siga las instrucciones en pantalla para seleccionar la versión de Node.js que desea instalar y el método de instalación.
+6. Después de instalar la nueva versión de Node.js, se le preguntará si desea actualizar las dependencias del proyecto.
 
-1. Clone este repositorio o descargue los archivos en su sistema.
-2. Navegue al directorio del proyecto:
-   ```
-   cd actualizador-node-wsl
-   ```
-3. Instale las dependencias necesarias:
-   ```
-   npm install
-   ```
+## Flujo de la aplicación
 
-## Uso
-
-1. Asegúrese de estar en el directorio del proyecto que desea actualizar.
-2. Ejecute el script:
-   ```
-   node index.js
-   ```
-3. El script detectará automáticamente si está en WSL o macOS.
-4. Se verificará la instalación de NVM y se cargará si es necesario.
-5. Siga las instrucciones en pantalla para completar el proceso de actualización.
+1. Detección del sistema operativo.
+2. Verificación de NVM.
+3. Obtención de la versión actual de Node.js.
+4. Verificación de actualizaciones disponibles.
+5. Selección de la versión objetivo.
+6. Elección del método de instalación (repositorios oficiales, archivo local, SharePoint).
+7. Instalación de la nueva versión de Node.js.
+8. Actualización opcional de las dependencias del proyecto con la nueva versión de Node.js.
 
 ## Notas importantes
 
-- El script verificará si hay una nueva versión par de Node.js disponible para la actualización.
-- Se le preguntará si desea proceder con la actualización.
-- Tiene la opción de usar una versión local de Node.js si no tiene acceso a internet para descargar la nueva versión.
-- Las dependencias del proyecto se actualizarán automáticamente.
+- La herramienta utiliza NVM para gestionar las versiones de Node.js. Asegúrese de que NVM esté correctamente instalado y configurado en su sistema.
+- Para entornos WSL, asegúrese de ejecutar la herramienta dentro del entorno WSL.
+- Si elige la opción de instalación desde un archivo local o SharePoint, asegúrese de tener los permisos necesarios y acceso a los archivos requeridos.
+- La actualización de las dependencias del proyecto se realiza después de instalar la nueva versión de Node.js para garantizar la compatibilidad.
 
 ## Solución de problemas
 
-Si encuentra algún problema durante la ejecución del script, asegúrese de:
+Si encuentra algún problema durante la ejecución de la herramienta, asegúrese de:
 
-1. Tener NVM instalado correctamente. Si el script indica que NVM no está instalado, siga las instrucciones en la sección "Instalación de NVM" de este README.
-2. Tener permisos suficientes para ejecutar comandos y modificar archivos en el directorio del proyecto.
-3. Tener una conexión a internet estable (a menos que esté usando versiones locales).
-4. Tener Node.js y npm correctamente instalados en su entorno.
+1. Tener NVM correctamente instalado y configurado.
+2. Tener permisos suficientes para ejecutar comandos y acceder a los directorios necesarios.
+3. Tener una conexión a internet estable si está instalando desde repositorios oficiales o SharePoint.
 
-Si los problemas persisten, por favor, revise los mensajes de error proporcionados por el script y consulte la documentación de Node.js, npm y NVM según sea necesario.
+Si los problemas persisten, por favor, abra un issue en este repositorio con una descripción detallada del problema y los pasos para reproducirlo.
 
-## Contribuciones
+## Contribuir
 
-Las contribuciones son bienvenidas. Por favor, abra un issue para discutir los cambios propuestos o envíe un pull request con sus mejoras.
+Las contribuciones son bienvenidas. Por favor, abra un issue para discutir los cambios propuestos antes de enviar un pull request.
 
 ## Licencia
 

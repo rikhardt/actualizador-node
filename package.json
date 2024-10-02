@@ -1,12 +1,13 @@
 {
   "name": "actualizador-node-wsl",
-  "version": "1.0.0",
-  "description": "",
+  "version": "1.1.0",
+  "description": "Una herramienta para actualizar Node.js en entornos WSL, Linux y macOS utilizando NVM",
   "main": "index.js",
   "scripts": {
+    "start": "node index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
+  "keywords": ["node", "nvm", "actualización", "wsl", "linux", "macos"],
   "author": "Rikhardt <ricardosotosaez@hotmail.com>",
   "license": "MIT"
 }
