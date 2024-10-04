@@ -3,7 +3,6 @@ const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
 const os = require('os');
-const https = require('https');
 
 const rl = readline.createInterface({
     input: process.stdin,
@@ -159,24 +158,9 @@ async function verificarVersionInstalada(version) {
     }
 }
 
-async function descargarDesdeSharePoint(url, rutaDestino) {
-    return new Promise((resolve, reject) => {
-        https.get(url, (response) => {
-            if (response.statusCode === 200) {
-                const fileStream = fs.createWriteStream(rutaDestino);
-                response.pipe(fileStream);
-                fileStream.on('finish', () => {
-                    fileStream.close();
-                    console.log(`Archivo descargado exitosamente en ${rutaDestino}`);
-                    resolve(rutaDestino);
-                });
-            } else {
-                reject(new Error(`Error al descargar: ${response.statusCode}`));
-            }
-        }).on('error', (err) => {
-            reject(err);
-        });
-    });
+function extraerVersionDesdeNombreArchivo(nombreArchivo) {
+    const match = nombreArchivo.match(/v?\d+\.\d+\.\d+/);
+    return match ? match[0] : null;
 }
 
 function validarFormatoVersion(version) {
@@ -238,25 +222,19 @@ async function buscarArchivoLocal() {
     }
 }
 
-async function actualizarNodejs(version, tipoInstalacion, urlSharePoint = '') {
+async function actualizarNodejs(version, tipoInstalacion, rutaArchivoLocal = '') {
     try {
-        const versionLimpia = version.split(' ')[0];
+        let versionLimpia = version.split(' ')[0];
+
         const versionInstalada = await verificarVersionInstalada(versionLimpia);
         
         if (versionInstalada) {
             console.log(`La versión ${versionLimpia} ya está instalada. Cambiando a esta versión...`);
         } else {
             switch (tipoInstalacion) {
-                case 'sharepoint':
-                    console.log(`Descargando Node.js versión ${versionLimpia} desde SharePoint...`);
-                    const rutaDescarga = path.join(os.tmpdir(), `node-${versionLimpia}.tar.gz`);
-                    await descargarDesdeSharePoint(urlSharePoint, rutaDescarga);
-                    console.log(`Instalando Node.js versión ${versionLimpia} desde archivo descargado...`);
-                    await ejecutarComandoNVM(`nvm install ${versionLimpia} --binary-file=${rutaDescarga}`);
-                    break;
                 case 'local':
                     console.log(`Instalando Node.js versión ${versionLimpia} desde archivo local...`);
-                    await ejecutarComandoNVM(`nvm install ${versionLimpia} --binary-file=${urlSharePoint}`);
+                    await ejecutarComandoNVM(`nvm install ${versionLimpia} --binary-file=${rutaArchivoLocal}`);
                     break;
                 case 'remoto':
                 default:
@@ -329,13 +307,12 @@ async function main() {
             'Instalar última versión LTS par desde repositorios oficiales',
             'Instalar versión específica desde repositorios oficiales',
             'Instalar desde archivo local',
-            'Instalar desde SharePoint',
             'Ver todas las versiones disponibles'
         ];
 
         const seleccionUnificada = await mostrarMenu(opcionesUnificadas);
 
-        let versionObjetivo, tipoInstalacion, urlSharePoint;
+        let versionObjetivo, tipoInstalacion, rutaArchivoLocal;
 
         switch (seleccionUnificada) {
             case 0: // Última versión LTS par desde repositorios oficiales
@@ -347,21 +324,15 @@ async function main() {
                 tipoInstalacion = 'remoto';
                 break;
             case 2: // Desde archivo local
-                const rutaLocal = await buscarArchivoLocal();
-                if (!rutaLocal) {
+                rutaArchivoLocal = await buscarArchivoLocal();
+                if (!rutaArchivoLocal) {
                     console.log('Selección de archivo cancelada por el usuario.');
                     return;
                 }
-                versionObjetivo = path.basename(rutaLocal).match(/v\d+\.\d+\.\d+/)[0];
+                versionObjetivo = extraerVersionDesdeNombreArchivo(path.basename(rutaArchivoLocal));
                 tipoInstalacion = 'local';
-                urlSharePoint = rutaLocal; // Usamos urlSharePoint para almacenar la ruta local
                 break;
-            case 3: // Desde SharePoint
-                versionObjetivo = await solicitarVersionValida();
-                tipoInstalacion = 'sharepoint';
-                urlSharePoint = await pregunta('Ingrese la URL de SharePoint para descargar Node.js: ');
-                break;
-            case 4: // Ver todas las versiones disponibles
+            case 3: // Ver todas las versiones disponibles
                 console.log('Versiones LTS pares disponibles:');
                 versionesDisponibles.forEach(v => console.log(v));
                 versionObjetivo = await solicitarVersionValida();
@@ -377,7 +348,7 @@ async function main() {
             const deseaActualizar = await pregunta('¿Desea actualizar a esta versión? (s/n): ');
 
             if (deseaActualizar.toLowerCase() === 's') {
-                const nuevaVersion = await actualizarNodejs(versionObjetivo, tipoInstalacion, urlSharePoint);
+                const nuevaVersion = await actualizarNodejs(versionObjetivo, tipoInstalacion, rutaArchivoLocal);
                 
                 if (nuevaVersion) {
                     if (await activarNuevaVersion(nuevaVersion)) {
@@ -392,7 +363,6 @@ async function main() {
                         console.log(`nvm use ${nuevaVersion}`);
                         console.log('npm install');
                     }
-
                 }
             } else {
                 console.log('Actualización cancelada por el usuario.');
