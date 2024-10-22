@@ -69,24 +69,37 @@ function detectarSistemaOperativo() {
     const platform = os.platform();
     if (platform === 'darwin') return 'macOS';
     if (platform === 'linux') {
-        const isWSL = fs.existsSync('/proc/version') && 
-                      fs.readFileSync('/proc/version', 'utf-8').toLowerCase().includes('microsoft');
+        const isWSL = fs.existsSync('/proc/version') &&
+            fs.readFileSync('/proc/version', 'utf-8').toLowerCase().includes('microsoft');
         return isWSL ? 'WSL' : 'Linux';
     }
     return 'Desconocido';
 }
 
-function ejecutarComandoNVM(comando) {
+function getUserHome() {
+    return process.env.HOME || process.env.USERPROFILE;
+}
+
+function cargarNVM() {
+    const nvmDir = path.join(getUserHome(), '.nvm');
+    const nvmScript = path.join(nvmDir, 'nvm.sh');
+    if (fs.existsSync(nvmScript)) {
+        return `. "${nvmScript}" && `;
+    }
+    return '';
+}
+
+function ejecutarComando(comando) {
     return new Promise((resolve, reject) => {
+        const nvmPrefix = cargarNVM();
         const shell = spawn('bash', ['-c', `
-            export NVM_DIR="$HOME/.nvm"
-            [ -s "$NVM_DIR/nvm.sh" ] && \\. "$NVM_DIR/nvm.sh"
+            ${nvmPrefix}
             ${comando}
         `], { stdio: ['inherit', 'pipe', 'pipe'] });
 
         let output = '';
         shell.stdout.on('data', (data) => { output += data.toString(); });
-        shell.stderr.on('data', (data) => { log('error', `Error en comando NVM: ${data}`); });
+        shell.stderr.on('data', (data) => { log('error', `Error en comando: ${data}`); });
         shell.on('close', (code) => {
             if (code !== 0) {
                 reject(new Error(`Comando falló con código de salida ${code}`));
@@ -100,38 +113,19 @@ function ejecutarComandoNVM(comando) {
 async function verificarNVM() {
     try {
         log('info', 'Verificando NVM...');
-        const version = await ejecutarComandoNVM('nvm --version');
+        const version = await ejecutarComando('nvm --version');
         log('info', `NVM encontrado. Versión: ${version}`);
         return true;
     } catch (error) {
         log('error', 'Error al verificar NVM:', error.message);
-        log('info', 'Intentando cargar NVM manualmente...');
-        
-        try {
-            const homeDir = os.homedir();
-            const nvmScript = path.join(homeDir, '.nvm', 'nvm.sh');
-            
-            if (fs.existsSync(nvmScript)) {
-                log('info', 'Archivo nvm.sh encontrado. Intentando cargar...');
-                await ejecutarComandoNVM('source ~/.nvm/nvm.sh && nvm --version');
-                log('info', 'NVM cargado correctamente.');
-                return true;
-            } else {
-                log('warn', 'No se encontró el archivo nvm.sh en la ubicación esperada.');
-                log('warn', 'Por favor, asegúrese de que NVM está instalado y configurado correctamente.');
-                return false;
-            }
-        } catch (secondError) {
-            log('error', 'Error al cargar NVM manualmente:', secondError.message);
-            log('warn', 'NVM no se pudo cargar o no está instalado correctamente.');
-            return false;
-        }
+        log('warn', 'NVM no se pudo cargar o no está instalado correctamente.');
+        return false;
     }
 }
 
 async function obtenerVersionActual() {
     try {
-        return await ejecutarComandoNVM('node --version');
+        return await ejecutarComando('node --version');
     } catch (error) {
         log('error', 'Error al obtener la versión de Node.js:', error.message);
         return null;
@@ -142,7 +136,7 @@ async function verificarActualizaciones() {
     try {
         log('info', 'Verificando actualizaciones disponibles...');
         console.log('Obteniendo lista de versiones...');
-        const versiones = await ejecutarComandoNVM('nvm ls-remote --lts');
+        const versiones = await ejecutarComando('nvm ls-remote --lts');
         console.log('Lista de versiones obtenida');
         const versionesPares = versiones.split('\n')
             .filter(v => v.includes('v'))
@@ -173,7 +167,7 @@ async function actualizarDependencias(rutaProyecto) {
     try {
         log('info', 'Actualizando dependencias del proyecto...');
         console.log('Actualizando dependencias...');
-        await ejecutarComandoNVM(`cd ${rutaProyecto} && npm update`);
+        await ejecutarComando(`cd ${rutaProyecto} && npm update`);
         console.log('Dependencias actualizadas correctamente.');
     } catch (error) {
         log('error', 'Error al actualizar dependencias:', error.message);
@@ -182,7 +176,7 @@ async function actualizarDependencias(rutaProyecto) {
 
 async function verificarVersionInstalada(version) {
     try {
-        await ejecutarComandoNVM(`nvm ls ${version}`);
+        await ejecutarComando(`nvm ls ${version}`);
         return true;
     } catch (error) {
         return false;
@@ -203,17 +197,18 @@ async function solicitarVersionValida() {
     let versionObjetivo;
     do {
         versionObjetivo = await pregunta(colorize(colors.fg.green, 'Ingrese la versión específica de Node.js que desea instalar (formato: vX.X.X): '));
+        versionObjetivo = versionObjetivo.trim();
         if (!validarFormatoVersion(versionObjetivo)) {
-            console.log(colorize(colors.fg.red, 'Formato de versión no válido. Por favor, use el formato vX.X.X (por ejemplo, v14.17.0)'));
+            console.log(colorize(colors.fg.red, 'Formato de versión no válido. Por favor, use el formato vX.X.X o X.X.X (por ejemplo, v14.17.0 o 14.17.0)'));
         }
     } while (!validarFormatoVersion(versionObjetivo));
-    
+
     return versionObjetivo.startsWith('v') ? versionObjetivo : `v${versionObjetivo}`;
 }
 
 function validarArchivoLocal(rutaArchivo) {
     log('info', `Validando archivo local: ${rutaArchivo}`);
-    
+
     if (!fs.existsSync(rutaArchivo)) {
         log('error', `Error: El archivo no existe en la ruta especificada.`);
         log('warn', `Compruebe que la ruta sea correcta y que tenga permisos de lectura.`);
@@ -226,10 +221,10 @@ function validarArchivoLocal(rutaArchivo) {
         return false;
     }
 
-    const extension = path.extname(rutaArchivo).toLowerCase();
-    if (!['.tar.gz', '.pkg'].includes(extension)) {
-        log('error', `Error: El archivo no tiene una extensión válida (.tar.gz o .pkg).`);
-        log('warn', `Extensión detectada: ${extension}`);
+    const nombreArchivo = path.basename(rutaArchivo).toLowerCase();
+    if (!nombreArchivo.endsWith('.tar.xz') && !nombreArchivo.endsWith('.tar.gz') && !nombreArchivo.endsWith('.pkg')) {
+        log('error', `Error: El archivo no tiene una extensión válida (.tar.xz, .tar.gz o .pkg).`);
+        log('warn', `Nombre de archivo detectado: ${nombreArchivo}`);
         return false;
     }
 
@@ -240,7 +235,7 @@ function validarArchivoLocal(rutaArchivo) {
 async function buscarArchivoLocal() {
     while (true) {
         const rutaArchivo = await pregunta(colorize(colors.fg.green, 'Ingrese la ruta completa del archivo de Node.js (o "cancelar" para salir): '));
-        
+
         if (rutaArchivo.toLowerCase() === 'cancelar') {
             return null;
         }
@@ -253,12 +248,49 @@ async function buscarArchivoLocal() {
     }
 }
 
+async function copiarArchivoAWSL(rutaArchivoWindows) {
+    try {
+        const nombreArchivo = path.basename(rutaArchivoWindows);
+        const rutaDestino = path.join(getUserHome(), nombreArchivo);
+
+        log('info', `Copiando archivo ${rutaArchivoWindows} a ${rutaDestino}...`);
+
+        await ejecutarComando(`cp "${rutaArchivoWindows}" "${rutaDestino}"`);
+
+        log('info', `Archivo copiado: ${rutaDestino}`);
+        return rutaDestino;
+    } catch (error) {
+        log('error', `Error al copiar archivo a WSL: ${error.message}`);
+        throw error;
+    }
+}
+
+async function descomprimirArchivo(rutaArchivo) {
+    const directorioDestino = path.join(getUserHome(), 'node-temp');
+    await ejecutarComando(`mkdir -p "${directorioDestino}"`);
+    await ejecutarComando(`tar -xf "${rutaArchivo}" -C "${directorioDestino}" --strip-components=1`);
+    return directorioDestino;
+}
+
+async function moverDirectorio(origen, destino) {
+    try {
+        await ejecutarComando(`sudo mkdir -p "${destino}"`);
+        await ejecutarComando(`sudo cp -R "${origen}"/* "${destino}"/`);
+        await ejecutarComando(`sudo rm -rf "${origen}"`);
+        log('info', `Contenido movido exitosamente de ${origen} a ${destino}`);
+    } catch (error) {
+        log('error', `Error al mover directorio: ${error.message}`);
+        throw error;
+    }
+}
+
 async function actualizarNodejs(version, tipoInstalacion, rutaArchivoLocal = '') {
     try {
         let versionLimpia = version.split(' ')[0];
+        const SO = detectarSistemaOperativo();
 
         const versionInstalada = await verificarVersionInstalada(versionLimpia);
-        
+
         if (versionInstalada) {
             log('info', `La versión ${versionLimpia} ya está instalada. Cambiando a esta versión...`);
         } else {
@@ -266,21 +298,40 @@ async function actualizarNodejs(version, tipoInstalacion, rutaArchivoLocal = '')
             switch (tipoInstalacion) {
                 case 'local':
                     log('info', `Instalando Node.js versión ${versionLimpia} desde archivo local...`);
-                    await ejecutarComandoNVM(`nvm install ${versionLimpia} --binary-file=${rutaArchivoLocal}`);
+                    if (SO === 'WSL') {
+                        rutaArchivoLocal = await copiarArchivoAWSL(rutaArchivoLocal);
+                        const directorioTemporal = await descomprimirArchivo(rutaArchivoLocal);
+                        const directorioDestino = `/usr/local/node-v${versionLimpia}`;
+
+                        await moverDirectorio(directorioTemporal, directorioDestino);
+
+                        // Configurar variables de entorno
+                        const rcFile = process.env.SHELL.includes('zsh') ? '.zshrc' : '.bashrc';
+                        const rcPath = path.join(getUserHome(), rcFile);
+                        const exportLine = `export PATH=${directorioDestino}/bin:$PATH`;
+
+                        fs.appendFileSync(rcPath, `\n${exportLine}\n`);
+
+                        log('info', `Node.js ${versionLimpia} instalado correctamente en ${directorioDestino}`);
+                        console.log(colorize(colors.fg.green, `Node.js ${versionLimpia} instalado correctamente.`));
+                        console.log(colorize(colors.fg.yellow, 'Por favor, reinicie su terminal o ejecute "source ~/.bashrc" (o ~/.zshrc) para aplicar los cambios.'));
+                    } else {
+                        await ejecutarComando(`nvm install ${versionLimpia} --binary-file=${rutaArchivoLocal}`);
+                    }
                     break;
                 case 'remoto':
                 default:
                     log('info', `Instalando Node.js versión ${versionLimpia} desde repositorios oficiales...`);
-                    await ejecutarComandoNVM(`nvm install ${versionLimpia}`);
+                    await ejecutarComando(`nvm install ${versionLimpia}`);
                     break;
             }
             console.log(`Node.js versión ${versionLimpia} instalado correctamente.`);
         }
 
-        await ejecutarComandoNVM(`nvm use ${versionLimpia}`);
+        await ejecutarComando(`nvm use ${versionLimpia}`);
         log('info', `Node.js actualizado a la versión ${versionLimpia}`);
 
-        await ejecutarComandoNVM(`nvm alias default ${versionLimpia}`);
+        await ejecutarComando(`nvm alias default ${versionLimpia}`);
         log('info', `Node.js ${versionLimpia} establecido como versión predeterminada`);
 
         const rutaProyecto = process.cwd();
@@ -294,6 +345,7 @@ async function actualizarNodejs(version, tipoInstalacion, rutaArchivoLocal = '')
         return versionLimpia;
     } catch (error) {
         log('error', 'Error al actualizar Node.js:', error.message);
+        console.error(colorize(colors.fg.red, `Error: ${error.message}`));
         return null;
     }
 }
@@ -302,7 +354,7 @@ async function activarNuevaVersion(version) {
     try {
         log('info', `Activando Node.js versión ${version}...`);
         console.log(`Activando Node.js versión ${version}...`);
-        await ejecutarComandoNVM(`nvm use ${version}`);
+        await ejecutarComando(`nvm use ${version}`);
         const versionActual = await obtenerVersionActual();
         if (versionActual === version) {
             console.log(`Node.js ${version} activado correctamente.`);
@@ -339,7 +391,7 @@ async function main() {
     try {
         console.log(colorize(colors.fg.cyan, 'Bienvenido al Actualizador de Node.js'));
         console.log(colorize(colors.fg.cyan, '====================================='));
-        
+
         const SO = detectarSistemaOperativo();
         log('info', `Sistema operativo detectado: ${SO}`);
 
@@ -385,7 +437,7 @@ async function main() {
                     log('info', 'Selección de archivo cancelada por el usuario.');
                     return;
                 }
-                versionObjetivo = extraerVersionDesdeNombreArchivo(path.basename(rutaArchivoLocal));
+                versionObjetivo = path.basename(rutaArchivoLocal).match(/v?\d+\.\d+\.\d+/)[0];
                 tipoInstalacion = 'local';
                 break;
             case 3:
@@ -401,12 +453,12 @@ async function main() {
         if (versionObjetivo) {
             log('info', `Versión objetivo para el upgrade: ${versionObjetivo}`);
             console.log(colorize(colors.fg.yellow, `Versión objetivo para el upgrade: ${versionObjetivo}`));
-            
+
             const deseaActualizar = await pregunta(colorize(colors.fg.green, '¿Desea actualizar a esta versión? (s/n): '));
 
             if (deseaActualizar.toLowerCase() === 's') {
                 const nuevaVersion = await actualizarNodejs(versionObjetivo, tipoInstalacion, rutaArchivoLocal);
-                
+
                 if (nuevaVersion) {
                     if (await activarNuevaVersion(nuevaVersion)) {
                         const rutaProyecto = process.cwd();
