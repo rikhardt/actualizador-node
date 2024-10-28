@@ -89,20 +89,23 @@ function cargarNVM() {
     return '';
 }
 
-function ejecutarComando(comando) {
+function ejecutarComando(comando, silenciarErrores = false) {
     return new Promise((resolve, reject) => {
         const nvmPrefix = cargarNVM();
         const shell = spawn('bash', ['-c', `
             ${nvmPrefix}
             ${comando}
-        `], { stdio: ['inherit', 'pipe', 'pipe'] });
+        `], { stdio: ['inherit', 'pipe', silenciarErrores ? 'ignore' : 'pipe'] });
 
         let output = '';
+        let errorOutput = '';
         shell.stdout.on('data', (data) => { output += data.toString(); });
-        shell.stderr.on('data', (data) => { log('error', `Error en comando: ${data}`); });
+        if (!silenciarErrores) {
+            shell.stderr.on('data', (data) => { errorOutput += data.toString(); });
+        }
         shell.on('close', (code) => {
-            if (code !== 0) {
-                reject(new Error(`Comando falló con código de salida ${code}`));
+            if (code !== 0 && !silenciarErrores) {
+                reject(new Error(errorOutput || `Comando falló con código de salida ${code}`));
             } else {
                 resolve(output.trim());
             }
@@ -146,7 +149,7 @@ async function verificarActualizaciones() {
         return versionesPares;
     } catch (error) {
         log('error', 'Error al verificar actualizaciones:', error.message);
-        return [];
+        throw error; // Propagamos el error para manejarlo en la función main
     }
 }
 
@@ -209,27 +212,28 @@ async function solicitarVersionValida() {
 function validarArchivoLocal(rutaArchivo) {
     log('info', `Validando archivo local: ${rutaArchivo}`);
 
-    if (!fs.existsSync(rutaArchivo)) {
-        log('error', `Error: El archivo no existe en la ruta especificada.`);
-        log('warn', `Compruebe que la ruta sea correcta y que tenga permisos de lectura.`);
+    try {
+        if (!fs.existsSync(rutaArchivo)) {
+            throw new Error('El archivo no existe en la ruta especificada.');
+        }
+
+        const stats = fs.statSync(rutaArchivo);
+        if (!stats.isFile()) {
+            throw new Error('La ruta especificada no es un archivo.');
+        }
+
+        const nombreArchivo = path.basename(rutaArchivo).toLowerCase();
+        if (!nombreArchivo.endsWith('.tar.xz') && !nombreArchivo.endsWith('.tar.gz') && !nombreArchivo.endsWith('.pkg')) {
+            throw new Error(`El archivo no tiene una extensión válida (.tar.xz, .tar.gz o .pkg). Nombre de archivo detectado: ${nombreArchivo}`);
+        }
+
+        log('info', `Archivo local validado correctamente.`);
+        return true;
+    } catch (error) {
+        log('error', `Error: ${error.message}`);
+        log('warn', 'Compruebe que la ruta sea correcta y que tenga permisos de lectura.');
         return false;
     }
-
-    const stats = fs.statSync(rutaArchivo);
-    if (!stats.isFile()) {
-        log('error', `Error: La ruta especificada no es un archivo.`);
-        return false;
-    }
-
-    const nombreArchivo = path.basename(rutaArchivo).toLowerCase();
-    if (!nombreArchivo.endsWith('.tar.xz') && !nombreArchivo.endsWith('.tar.gz') && !nombreArchivo.endsWith('.pkg')) {
-        log('error', `Error: El archivo no tiene una extensión válida (.tar.xz, .tar.gz o .pkg).`);
-        log('warn', `Nombre de archivo detectado: ${nombreArchivo}`);
-        return false;
-    }
-
-    log('info', `Archivo local validado correctamente.`);
-    return true;
 }
 
 async function buscarArchivoLocal() {
@@ -240,8 +244,11 @@ async function buscarArchivoLocal() {
             return null;
         }
 
-        if (validarArchivoLocal(rutaArchivo)) {
-            return rutaArchivo;
+        // Eliminar comillas simples o dobles al principio y al final de la ruta
+        const rutaLimpia = rutaArchivo.replace(/^['"]|['"]$/g, '');
+
+        if (validarArchivoLocal(rutaLimpia)) {
+            return rutaLimpia;
         }
 
         console.log(colorize(colors.fg.red, 'Por favor, intente nuevamente con una ruta válida.'));
@@ -387,6 +394,22 @@ Ruta del proyecto: ${process.cwd()}
     console.log(colorize(colors.fg.green, `Se ha generado un informe de la actualización en ${nombreArchivo}`));
 }
 
+async function verificarConectividad() {
+    try {
+        log('info', 'Verificando conectividad...');
+        const resultado = await ejecutarComando('curl -Is https://nodejs.org/dist/ | head -n 1', true);
+        if (resultado.includes('HTTP/') && resultado.includes('200')) {
+            log('info', 'Conectividad verificada exitosamente.');
+            return true;
+        } else {
+            throw new Error('Respuesta no válida del servidor');
+        }
+    } catch (error) {
+        log('warn', 'No se pudo establecer conexión con https://nodejs.org/dist/');
+        return false;
+    }
+}
+
 async function main() {
     try {
         console.log(colorize(colors.fg.cyan, 'Bienvenido al Actualizador de Node.js'));
@@ -406,48 +429,73 @@ async function main() {
         log('info', `Versión actual de Node.js: ${versionActual}`);
         console.log(colorize(colors.fg.yellow, `Versión actual de Node.js: ${versionActual}`));
 
-        const versionesDisponibles = await verificarActualizaciones();
-        if (versionesDisponibles.length === 0) {
-            throw new Error('No se pudieron obtener las versiones disponibles de Node.js');
-        }
-
-        const opcionesUnificadas = [
-            'Instalar última versión LTS par desde repositorios oficiales',
-            'Instalar versión específica desde repositorios oficiales',
-            'Instalar desde archivo local',
-            'Ver todas las versiones disponibles'
-        ];
-
-        const seleccionUnificada = await mostrarMenu(opcionesUnificadas);
+        const hayConectividad = await verificarConectividad();
 
         let versionObjetivo, tipoInstalacion, rutaArchivoLocal;
 
-        switch (seleccionUnificada) {
-            case 0:
-                versionObjetivo = determinarVersionObjetivo(versionActual, versionesDisponibles);
-                tipoInstalacion = 'remoto';
-                break;
-            case 1:
-                versionObjetivo = await solicitarVersionValida();
-                tipoInstalacion = 'remoto';
-                break;
-            case 2:
+        if (!hayConectividad) {
+            console.log(colorize(colors.fg.yellow, 'No se detectó conectividad. Se procederá con la instalación desde archivo local.'));
+            rutaArchivoLocal = await buscarArchivoLocal();
+            if (!rutaArchivoLocal) {
+                log('info', 'Selección de archivo cancelada por el usuario.');
+                return;
+            }
+            versionObjetivo = extraerVersionDesdeNombreArchivo(rutaArchivoLocal);
+            tipoInstalacion = 'local';
+        } else {
+            try {
+                const versionesDisponibles = await verificarActualizaciones();
+                if (versionesDisponibles.length === 0) {
+                    throw new Error('No se encontraron versiones LTS pares disponibles.');
+                }
+
+                const opcionesUnificadas = [
+                    'Instalar última versión LTS par desde repositorios oficiales',
+                    'Instalar versión específica desde repositorios oficiales',
+                    'Instalar desde archivo local',
+                    'Ver todas las versiones disponibles'
+                ];
+
+                const seleccionUnificada = await mostrarMenu(opcionesUnificadas);
+
+                switch (seleccionUnificada) {
+                    case 0:
+                        versionObjetivo = determinarVersionObjetivo(versionActual, versionesDisponibles);
+                        tipoInstalacion = 'remoto';
+                        break;
+                    case 1:
+                        versionObjetivo = await solicitarVersionValida();
+                        tipoInstalacion = 'remoto';
+                        break;
+                    case 2:
+                        rutaArchivoLocal = await buscarArchivoLocal();
+                        if (!rutaArchivoLocal) {
+                            log('info', 'Selección de archivo cancelada por el usuario.');
+                            return;
+                        }
+                        versionObjetivo = extraerVersionDesdeNombreArchivo(rutaArchivoLocal);
+                        tipoInstalacion = 'local';
+                        break;
+                    case 3:
+                        console.log(colorize(colors.fg.cyan, 'Versiones LTS pares disponibles:'));
+                        versionesDisponibles.forEach(v => console.log(colorize(colors.fg.yellow, v)));
+                        versionObjetivo = await solicitarVersionValida();
+                        tipoInstalacion = 'remoto';
+                        break;
+                    default:
+                        throw new Error('Opción no válida');
+                }
+            } catch (error) {
+                log('error', 'Error al obtener versiones disponibles:', error.message);
+                console.log(colorize(colors.fg.yellow, 'Debido a un error, se procederá con la instalación desde archivo local.'));
                 rutaArchivoLocal = await buscarArchivoLocal();
                 if (!rutaArchivoLocal) {
                     log('info', 'Selección de archivo cancelada por el usuario.');
                     return;
                 }
-                versionObjetivo = path.basename(rutaArchivoLocal).match(/v?\d+\.\d+\.\d+/)[0];
+                versionObjetivo = extraerVersionDesdeNombreArchivo(rutaArchivoLocal);
                 tipoInstalacion = 'local';
-                break;
-            case 3:
-                console.log(colorize(colors.fg.cyan, 'Versiones LTS pares disponibles:'));
-                versionesDisponibles.forEach(v => console.log(colorize(colors.fg.yellow, v)));
-                versionObjetivo = await solicitarVersionValida();
-                tipoInstalacion = 'remoto';
-                break;
-            default:
-                throw new Error('Opción no válida');
+            }
         }
 
         if (versionObjetivo) {
