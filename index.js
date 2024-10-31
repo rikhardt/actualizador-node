@@ -90,6 +90,10 @@ function cargarNVM() {
     return '';
 }
 
+function NVM_DIR() {
+    return process.env.NVM_DIR
+}
+
 function ejecutarComando(comando, silenciarErrores = false) {
     return new Promise((resolve, reject) => {
         const nvmPrefix = cargarNVM();
@@ -233,6 +237,7 @@ function validarArchivoLocal(rutaArchivo) {
     } catch (error) {
         log('error', `Error: ${error.message}`);
         log('warn', 'Compruebe que la ruta sea correcta y que tenga permisos de lectura.');
+        log('warn', 'Si estás en un entorno de WSL. La ruta debería ser algo como esto: /mnt/c/Users/<user_name>/Downloads/node-<version>-linux-x64.tar.xz.');
         return false;
     }
 }
@@ -302,6 +307,11 @@ async function descargarBinarioNode(version) {
         log('info', `Descargando Node.js ${version} para ${arquitectura}...`);
         const file = fs.createWriteStream(rutaDestino);
         https.get(url, (response) => {
+            if (response.statusCode === 404) {
+                log('error', `La versión ${version} no existe en el repositorio.`);
+                reject(new Error(`La versión ${version} no existe en el repositorio.`));
+                return;
+            }
             response.pipe(file);
             file.on('finish', () => {
                 file.close();
@@ -332,7 +342,7 @@ async function actualizarNodejs(version, tipoInstalacion, rutaArchivoLocal = '')
                     if (SO === 'WSL') {
                         rutaArchivoLocal = await copiarArchivoAWSL(rutaArchivoLocal);
                         const directorioTemporal = await descomprimirArchivo(rutaArchivoLocal);
-                        const directorioDestino = `/usr/local/node-v${versionLimpia}`;
+                        const directorioDestino = `${NVM_DIR()}/versions/node/${versionLimpia}`;
 
                         await moverDirectorio(directorioTemporal, directorioDestino);
 
@@ -345,7 +355,6 @@ async function actualizarNodejs(version, tipoInstalacion, rutaArchivoLocal = '')
 
                         log('info', `Node.js ${versionLimpia} instalado correctamente en ${directorioDestino}`);
                         console.log(colorize(colors.fg.green, `Node.js ${versionLimpia} instalado correctamente.`));
-                        console.log(colorize(colors.fg.yellow, 'Por favor, reinicie su terminal o ejecute "source ~/.bashrc" (o ~/.zshrc) para aplicar los cambios.'));
                     } else {
                         await ejecutarComando(`nvm install ${versionLimpia} --binary-file=${rutaArchivoLocal}`);
                     }
@@ -356,8 +365,7 @@ async function actualizarNodejs(version, tipoInstalacion, rutaArchivoLocal = '')
                     if (SO === 'WSL') {
                         const rutaArchivo = await descargarBinarioNode(versionLimpia);
                         const directorioTemporal = await descomprimirArchivo(rutaArchivo);
-                        // const directorioDestino = `/usr/local/node${versionLimpia}`;
-                        const directorioDestino = `/home/user/.nvm/versions/node/${versionLimpia}`;
+                        const directorioDestino = `${NVM_DIR()}/versions/node/${versionLimpia}`;
 
                         await moverDirectorio(directorioTemporal, directorioDestino);
 
@@ -381,8 +389,9 @@ async function actualizarNodejs(version, tipoInstalacion, rutaArchivoLocal = '')
 
         // Intentar usar la nueva versión
         try {
+            await ejecutarComando(`sudo chown -R user ${NVM_DIR()}/versions/node/${versionLimpia}`);
+            await ejecutarComando(`sudo chmod -R u+w ${NVM_DIR()}/versions/node/${versionLimpia}`);
             await ejecutarComando(`nvm use ${versionLimpia}`);
-            log('info', `Node.js actualizado a la versión ${versionLimpia}`);
         } catch (error) {
             log('error', `Error al cambiar a Node.js ${versionLimpia}: ${error.message}`);
             console.error(colorize(colors.fg.red, `No se pudo activar Node.js ${versionLimpia} automáticamente.`));
@@ -399,6 +408,8 @@ async function actualizarNodejs(version, tipoInstalacion, rutaArchivoLocal = '')
             console.log(colorize(colors.fg.yellow, 'Por favor, siga estos pasos para completar la configuración:'));
             console.log(colorize(colors.fg.cyan, `1. Ejecute: nvm use ${versionLimpia}`));
             return null;
+        }else {
+            log('info', `Node.js actualizado a la versión ${versionLimpia} correctamente`);
         }
 
         const rutaProyecto = process.cwd();
