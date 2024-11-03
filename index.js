@@ -25,7 +25,7 @@ function colorize(color, text) {
 }
 
 function log(level, message) {
-    const timestamp = new Date().toISOString();
+    const timestamp = new Date().toLocaleString('es-CL', { timeZone: 'America/Santiago', hour12: false });
     console.log(`${timestamp} [${level.toUpperCase()}]: ${message}`);
 }
 
@@ -346,13 +346,7 @@ async function actualizarNodejs(version, tipoInstalacion, rutaArchivoLocal = '')
 
                         await moverDirectorio(directorioTemporal, directorioDestino);
 
-                        // Configurar variables de entorno
-                        const rcFile = process.env.SHELL.includes('zsh') ? '.zshrc' : '.bashrc';
-                        const rcPath = path.join(getUserHome(), rcFile);
-                        const exportLine = `export PATH=${directorioDestino}/bin:$PATH`;
-
-                        fs.appendFileSync(rcPath, `\n${exportLine}\n`);
-
+                        await activarNuevaVersion(versionLimpia)
                         log('info', `Node.js ${versionLimpia} instalado correctamente en ${directorioDestino}`);
                         console.log(colorize(colors.fg.green, `Node.js ${versionLimpia} instalado correctamente.`));
                     } else {
