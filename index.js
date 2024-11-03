@@ -1,4 +1,4 @@
-const { execSync, spawn } = require('child_process');
+const { execSync, exec, spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
@@ -97,7 +97,7 @@ function NVM_DIR() {
 function ejecutarComando(comando, silenciarErrores = false) {
     return new Promise((resolve, reject) => {
         const nvmPrefix = cargarNVM();
-        const shell = spawn('bash', ['-c', `
+        const shell = spawn('zsh', ['-c', `
             ${nvmPrefix}
             ${comando}
         `], { stdio: ['inherit', 'pipe', silenciarErrores ? 'ignore' : 'pipe'] });
@@ -310,7 +310,7 @@ async function descargarBinarioNode(version) {
             if (response.statusCode === 404) {
                 log('error', `La versión ${version} no existe en el repositorio.`);
                 reject(new Error(`La versión ${version} no existe en el repositorio.`));
-                return;
+                return null;
             }
             response.pipe(file);
             file.on('finish', () => {
@@ -369,7 +369,7 @@ async function actualizarNodejs(version, tipoInstalacion, rutaArchivoLocal = '')
 
                         await moverDirectorio(directorioTemporal, directorioDestino);
 
-                        await ejecutarComando(`nvm use ${versionLimpia}`);
+                        await activarNuevaVersion(versionLimpia)
                         log('info', `Node.js ${versionLimpia} instalado correctamente en ${directorioDestino}`);
                         console.log(colorize(colors.fg.green, `Node.js ${versionLimpia} instalado correctamente.`));
                         
@@ -389,9 +389,7 @@ async function actualizarNodejs(version, tipoInstalacion, rutaArchivoLocal = '')
 
         // Intentar usar la nueva versión
         try {
-            await ejecutarComando(`sudo chown -R user ${NVM_DIR()}/versions/node/${versionLimpia}`);
-            await ejecutarComando(`sudo chmod -R u+w ${NVM_DIR()}/versions/node/${versionLimpia}`);
-            await ejecutarComando(`nvm use ${versionLimpia}`);
+            await activarNuevaVersion(versionLimpia)
         } catch (error) {
             log('error', `Error al cambiar a Node.js ${versionLimpia}: ${error.message}`);
             console.error(colorize(colors.fg.red, `No se pudo activar Node.js ${versionLimpia} automáticamente.`));
@@ -432,7 +430,15 @@ async function activarNuevaVersion(version) {
     try {
         log('info', `Activando Node.js versión ${version}...`);
         console.log(`Activando Node.js versión ${version}...`);
-        await ejecutarComando(`nvm use ${version}`);
+        
+        execSync(`zsh -c 'cd ~ && source /home/user/cambiar_version.sh ${version}'`, (err, stdout, stderr) => {
+            if (err) {
+                console.error(`Error al activar nueva versión de Node: ${stderr}`);
+                return ;
+            }
+            console.log(`Output: ${stdout}`);
+        });
+
         const versionActual = await obtenerVersionActual();
         if (versionActual === version) {
             console.log(`Node.js ${version} activado correctamente.`);
@@ -445,24 +451,6 @@ async function activarNuevaVersion(version) {
         log('error', 'Error al activar la nueva versión de Node.js:', error.message);
         return false;
     }
-}
-
-async function generarInforme(versionAnterior, nuevaVersion, tipoInstalacion) {
-    const informe = `
-Informe de Actualización de Node.js
-===================================
-Fecha: ${new Date().toLocaleString()}
-Versión anterior: ${versionAnterior}
-Nueva versión: ${nuevaVersion}
-Método de instalación: ${tipoInstalacion}
-Sistema Operativo: ${detectarSistemaOperativo()}
-Ruta del proyecto: ${process.cwd()}
-`.trim();
-
-    const nombreArchivo = `informe_actualizacion_${nuevaVersion.replace('v', '')}.txt`;
-    fs.writeFileSync(nombreArchivo, informe);
-    log('info', `Informe de actualización generado: ${nombreArchivo}`);
-    console.log(colorize(colors.fg.green, `Se ha generado un informe de la actualización en ${nombreArchivo}`));
 }
 
 async function verificarConectividad() {
@@ -585,12 +573,10 @@ async function main() {
                         if (actualizarDeps.toLowerCase() === 's') {
                             await actualizarDependencias(rutaProyecto);
                         }
-                        await generarInforme(versionActual, nuevaVersion, tipoInstalacion);
                     } else {
                         console.log(colorize(colors.fg.red, 'No se pudo activar la nueva versión. Las dependencias no se actualizarán.'));
                         console.log(colorize(colors.fg.yellow, '\nPara aplicar los cambios en nuevas sesiones de terminal, por favor ejecute los siguientes comandos:'));
                         console.log(colorize(colors.fg.cyan, `nvm use ${nuevaVersion}`));
-                        console.log(colorize(colors.fg.cyan, 'npm install'));
                     }
                 }
             } else {
