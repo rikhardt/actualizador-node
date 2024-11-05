@@ -2,94 +2,145 @@
 
 Esta herramienta permite actualizar fácilmente la versión de Node.js en entornos WSL, Linux y macOS utilizando NVM (Node Version Manager).
 
+## Estructura del Proyecto
+
+```
+actualizador-node/
+├── src/
+│   ├── config/
+│   │   └── config.js         # Manejo de configuración
+│   ├── services/
+│   │   ├── actualizador.js   # Lógica principal
+│   │   └── nodeService.js    # Servicios de Node.js
+│   └── utils/
+│       ├── colors.js         # Utilidades de colores
+│       ├── command.js        # Ejecución de comandos
+│       ├── logger.js         # Sistema de logging
+│       └── system.js         # Utilidades del sistema
+├── index.js                  # Punto de entrada
+├── package.json
+└── README.md
+```
+
 ## Requisitos previos
 
-- NVM (Node Version Manager) instalado y configurado correctamente.
-- Bash shell disponible (para WSL, Linux y macOS).
+- NVM (Node Version Manager) instalado y configurado correctamente
+- Bash shell disponible (para WSL, Linux y macOS)
+- Permisos de escritura en el directorio de instalación de NVM
 
-## Características
+## Características principales
 
-- Detección automática del sistema operativo (WSL, Linux, macOS).
-- Verificación de la versión actual de Node.js.
-- Opciones para seleccionar la versión de actualización:
-  - Ingresar una versión específica.
-  - Usar la última versión LTS par disponible.
-  - Ver y seleccionar de una lista de versiones disponibles.
-- Múltiples opciones de instalación:
-  - Desde repositorios oficiales.
-  - Desde un archivo local.
-  - Desde SharePoint (para entornos corporativos).
-- Actualización opcional de dependencias del proyecto después de instalar la nueva versión de Node.js.
-- Creación/actualización automática del archivo .nvmrc.
-- Manejo mejorado de permisos y advertencias cuando se ejecuta con privilegios de superusuario.
+- Detección automática del sistema operativo (WSL, Linux, macOS)
+- Verificación y validación de NVM
+- Múltiples métodos de instalación:
+  - Instalación desde repositorios oficiales
+  - Instalación desde archivo local
+  - Actualización a última versión LTS par
+- Gestión inteligente de versiones:
+  - Verificación de versiones instaladas
+  - Determinación automática de versión objetivo
+  - Validación de formato de versiones
+- Sistema robusto de manejo de errores y logging
+- Actualización automática de .nvmrc
+- Gestión de dependencias del proyecto
+- Interfaz de usuario amigable con colores
 
-## Cómo usar
+## Instalación
 
-1. Asegúrese de tener NVM instalado y configurado correctamente.
-2. Clone este repositorio o descargue los archivos en su máquina local.
-3. Abra una terminal y navegue hasta el directorio del proyecto.
-4. Ejecute el siguiente comando:
-
+1. Clone el repositorio:
+   ```bash
+   git clone https://github.com/tu-usuario/actualizador-node.git
    ```
+
+2. Instale las dependencias:
+   ```bash
+   cd actualizador-node
+   npm install
+   ```
+
+## Uso
+
+1. Ejecute el actualizador:
+   ```bash
    node index.js
    ```
-
-   O si prefiere usar npm:
-
-   ```
+   o
+   ```bash
    npm start
    ```
 
-5. Siga las instrucciones en pantalla para seleccionar la versión de Node.js que desea instalar y el método de instalación.
-6. Después de instalar la nueva versión de Node.js, se le preguntará si desea actualizar las dependencias del proyecto.
+2. Siga las instrucciones en pantalla para:
+   - Seleccionar el método de instalación
+   - Elegir la versión de Node.js
+   - Confirmar la actualización
+   - Actualizar dependencias (opcional)
 
-### Uso con privilegios elevados
+## Métodos de Instalación
 
-Se recomienda ejecutar el script sin privilegios de superusuario siempre que sea posible. Sin embargo, si necesita ejecutar el script con privilegios elevados, use el siguiente comando:
+### 1. Desde Repositorios Oficiales
+- Descarga automática desde nodejs.org
+- Verificación de integridad
+- Instalación optimizada
 
-```
-sudo -E -u $SUDO_USER node index.js
-```
+### 2. Desde Archivo Local
+- Soporte para archivos .tar.xz, .tar.gz y .pkg
+- Validación de formato y contenido
+- Instalación segura
 
-Este comando ejecutará el script con privilegios de superusuario, pero mantendrá el entorno del usuario original, lo que es crucial para el correcto funcionamiento de NVM.
+### 3. Última Versión LTS Par
+- Detección automática de versiones disponibles
+- Selección inteligente de versión objetivo
+- Actualización directa
 
-**Nota importante:** El script detectará si se está ejecutando con sudo y mostrará una advertencia. Se le pedirá confirmación antes de continuar para evitar posibles problemas de permisos.
+## Manejo de Errores
 
-## Flujo de la aplicación
+El sistema incluye:
+- Validación exhaustiva de entradas
+- Logging detallado de operaciones
+- Mensajes de error claros y descriptivos
+- Recuperación automática de fallos
+- Rollback en caso de errores críticos
 
-1. Detección del sistema operativo y verificación de privilegios de ejecución.
-2. Verificación de NVM.
-3. Obtención de la versión actual de Node.js.
-4. Verificación de actualizaciones disponibles.
-5. Selección de la versión objetivo.
-6. Elección del método de instalación (repositorios oficiales, archivo local, SharePoint).
-7. Instalación de la nueva versión de Node.js.
-8. Actualización opcional de las dependencias del proyecto con la nueva versión de Node.js.
+## Configuración
 
-## Notas importantes
+El sistema mantiene un archivo de configuración (config.json) que almacena:
+- Última versión utilizada
+- Método de instalación preferido
+- Configuraciones personalizadas
 
-- La herramienta utiliza NVM para gestionar las versiones de Node.js. Asegúrese de que NVM esté correctamente instalado y configurado en su sistema.
-- Para entornos WSL, asegúrese de ejecutar la herramienta dentro del entorno WSL.
-- Si elige la opción de instalación desde un archivo local o SharePoint, asegúrese de tener los permisos necesarios y acceso a los archivos requeridos.
-- La actualización de las dependencias del proyecto se realiza después de instalar la nueva versión de Node.js para garantizar la compatibilidad.
-- El script ahora maneja mejor los problemas de permisos y proporciona advertencias claras cuando se ejecuta con privilegios elevados.
+## Logs
+
+Los logs incluyen:
+- Timestamp con zona horaria
+- Nivel de log (INFO, WARN, ERROR)
+- Mensajes detallados
+- Seguimiento de operaciones
 
 ## Solución de problemas
 
-Si encuentra algún problema durante la ejecución de la herramienta, asegúrese de:
+1. Verificar NVM:
+   ```bash
+   nvm --version
+   ```
 
-1. Tener NVM correctamente instalado y configurado.
-2. Tener permisos suficientes para ejecutar comandos y acceder a los directorios necesarios.
-3. Tener una conexión a internet estable si está instalando desde repositorios oficiales o SharePoint.
-4. Si necesita usar privilegios elevados, use el comando recomendado en la sección "Uso con privilegios elevados".
-5. Si recibe advertencias sobre permisos, considere ejecutar el script sin sudo o seguir las instrucciones proporcionadas para usar sudo correctamente.
+2. Comprobar permisos:
+   ```bash
+   ls -la ~/.nvm
+   ```
 
-Si los problemas persisten, por favor, abra un issue en este repositorio con una descripción detallada del problema y los pasos para reproducirlo.
+3. Verificar conectividad:
+   ```bash
+   curl -Is https://nodejs.org/dist/
+   ```
 
 ## Contribuir
 
-Las contribuciones son bienvenidas. Por favor, abra un issue para discutir los cambios propuestos antes de enviar un pull request.
+1. Fork el repositorio
+2. Cree una rama para su feature (`git checkout -b feature/AmazingFeature`)
+3. Commit sus cambios (`git commit -m 'Add some AmazingFeature'`)
+4. Push a la rama (`git push origin feature/AmazingFeature`)
+5. Abra un Pull Request
 
 ## Licencia
 
-Este proyecto está licenciado bajo la Licencia MIT. Consulte el archivo LICENSE para más detalles.
+Este proyecto está licenciado bajo la Licencia MIT - vea el archivo LICENSE para más detalles.
